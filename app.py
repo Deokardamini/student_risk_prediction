@@ -1,136 +1,133 @@
-import pickle
+import streamlit as st
+import pandas as pd
 import numpy as np
-from flask import Flask, render_template_string, request
+import pickle
 
-app = Flask(__name__)
+# Page Configuration
+st.set_page_config(
+    page_title="Student Risk Assessment",
+    page_icon="🎓",
+    layout="wide"
+)
+
+# Embed Custom CSS
+st.markdown("""
+    <style>
+    .main {
+        background-color: #f8f9fa;
+    }
+    .stButton>button {
+        width: 100%;
+        background-color: #4CAF50;
+        color: white;
+        font-size: 18px;
+        font-weight: bold;
+        padding: 10px;
+        border-radius: 8px;
+        border: none;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #45a049;
+    }
+    .result-card {
+        padding: 20px;
+        border-radius: 10px;
+        background-color: #ffffff;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # Load the logistic regression model
-with open("logistic.pkl", "rb") as f:
-    model = pickle.load(f)
+@st.cache_resource
+def load_model():
+    with open("logistic.pkl", "rb") as f:
+        return pickle.load(f)
 
-HTML_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Risk Assessment Predictor</title>
-    <style>
-        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        body { background-color: #f4f6f9; margin: 0; padding: 40px 20px; display: flex; justify-content: center; }
-        .container { background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); max-width: 650px; width: 100%; }
-        h2 { text-align: center; color: #2c3e50; margin-bottom: 25px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .form-group { display: flex; flex-direction: column; }
-        label { font-size: 14px; font-weight: 600; color: #34495e; margin-bottom: 6px; }
-        input, select { padding: 10px; border: 1px solid #cccccc; border-radius: 6px; font-size: 14px; }
-        input:focus, select:focus { border-color: #3498db; outline: none; }
-        .full-width { grid-column: span 2; }
-        button { background-color: #3498db; color: white; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px; transition: background 0.2s; }
-        button:hover { background-color: #2980b9; }
-        .result-box { margin-top: 25px; padding: 15px; border-radius: 6px; text-align: center; font-size: 18px; font-weight: bold; }
-        .At-Risk { background-color: #fce4e4; color: #c0392b; border: 1px solid #f5c6cb; }
-        .High-Risk { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
-        .Safe { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h2>Student Performance Predictor</h2>
-        <form method="POST" action="/">
-            <div class="grid">
-                <div class="form-group">
-                    <label>Attendance (%)</label>
-                    <input type="number" step="any" name="attendance" required placeholder="e.g. 85">
-                </div>
-                <div class="form-group">
-                    <label>Study Hours (Weekly)</label>
-                    <input type="number" step="any" name="study_hours" required placeholder="e.g. 15">
-                </div>
-                <div class="form-group">
-                    <label>Past Failures</label>
-                    <input type="number" name="past_failures" required placeholder="e.g. 0">
-                </div>
-                <div class="form-group">
-                    <label>Assignments Completed (%)</label>
-                    <input type="number" step="any" name="assignments_completed_pct" required placeholder="e.g. 90">
-                </div>
-                <div class="form-group">
-                    <label>Parental Education</label>
-                    <select name="parental_education" required>
-                        <option value="0">High School</option>
-                        <option value="1">Associate Degree</option>
-                        <option value="2">Bachelor's Degree</option>
-                        <option value="3">Master's / Higher</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Family Income Level</label>
-                    <select name="family_income" required>
-                        <option value="0">Low</option>
-                        <option value="1">Medium</option>
-                        <option value="2">High</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Extracurricular Activities</label>
-                    <select name="extracurricular" required>
-                        <option value="0">No</option>
-                        <option value="1">Yes</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Internet Access</label>
-                    <select name="internet_access" required>
-                        <option value="0">No</option>
-                        <option value="1">Yes</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Previous Grade</label>
-                    <input type="number" step="any" name="previous_grade" required placeholder="e.g. 75">
-                </div>
-                <div class="form-group">
-                    <label>Final Score</label>
-                    <input type="number" step="any" name="final_score" required placeholder="e.g. 80">
-                </div>
-            </div>
-            <button type="submit" class="full-width">Predict Status</button>
-        </form>
+model = load_model()
 
-        {% if prediction %}
-        <div class="result-box {{ prediction }}">
-            Predicted Status: {{ prediction }}
-        </div>
-        {% endif %}
-    </div>
-</body>
-</html>
-"""
+# Header
+st.title("🎓 Student Academic Performance Predictor")
+st.write("Enter the student details below to assess risk level.")
+st.markdown("---")
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    prediction = None
-    if request.method == "POST":
-        # Extract features in the exact order expected by feature_names_in_
-        features = [
-            float(request.form["attendance"]),
-            float(request.form["study_hours"]),
-            float(request.form["past_failures"]),
-            float(request.form["assignments_completed_pct"]),
-            float(request.form["parental_education"]),
-            float(request.form["family_income"]),
-            float(request.form["extracurricular"]),
-            float(request.form["internet_access"]),
-            float(request.form["previous_grade"]),
-            float(request.form["final_score"])
-        ]
+# Input Form
+with st.form(key="prediction_form"):
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("📊 Academic Metrics")
+        attendance = st.slider("Attendance Rate (%)", 0.0, 100.0, 85.0)
+        study_hours = st.number_input("Weekly Study Hours", min_value=0.0, max_value=100.0, value=15.0)
+        past_failures = st.number_input("Past Failures", min_value=0, max_value=10, value=0)
+        assignments_completed_pct = st.slider("Assignments Completed (%)", 0.0, 100.0, 90.0)
+        previous_grade = st.number_input("Previous Grade (%)", min_value=0.0, max_value=100.0, value=75.0)
+        final_score = st.number_input("Final Score (%)", min_value=0.0, max_value=100.0, value=80.0)
+
+    with col2:
+        st.subheader("🏠 Personal & Socioeconomic Factors")
+        parental_education = st.selectbox(
+            "Parental Education Level",
+            options=["None", "High School", "Bachelor's", "Master's", "Doctorate"]
+        )
+        family_income = st.selectbox(
+            "Family Income Level",
+            options=["Low", "Medium", "High"]
+        )
+        extracurricular = st.selectbox(
+            "Extracurricular Activities",
+            options=["No", "Yes"]
+        )
+        internet_access = st.selectbox(
+            "Internet Access at Home",
+            options=["No", "Yes"]
+        )
+
+    submit_button = st.form_submit_button(label="Predict Student Risk Level")
+
+# Prediction Execution
+if submit_button:
+    # Map categorical text options to categorical codes/types if expected numerically or as object categories
+    input_data = pd.DataFrame([{
+        "attendance": attendance,
+        "study_hours": study_hours,
+        "past_failures": past_failures,
+        "assignments_completed_pct": assignments_completed_pct,
+        "parental_education": pd.Categorical([parental_education], categories=["None", "High School", "Bachelor's", "Master's", "Doctorate"])[0],
+        "family_income": pd.Categorical([family_income], categories=["Low", "Medium", "High"])[0],
+        "extracurricular": pd.Categorical([extracurricular], categories=["No", "Yes"])[0],
+        "internet_access": pd.Categorical([internet_access], categories=["No", "Yes"])[0],
+        "previous_grade": previous_grade,
+        "final_score": final_score
+    }])
+
+    st.markdown("---")
+    
+    try:
+        prediction = model.predict(input_data)[0]
+        probabilities = model.predict_proba(input_data)[0]
+
+        st.markdown('<div class="result-card">', unsafe_allow_html=True)
+        st.subheader("Prediction Result")
         
-        final_features = np.array([features])
-        prediction_result = model.predict(final_features)[0]
-        prediction = str(prediction_result)
-
-    return render_template_string(HTML_TEMPLATE, prediction=prediction)
-
-if __name__ == "__main__":
-    app.run(debug=True)
+        if prediction == "At-Risk":
+            st.error(f"⚠️ Assessment Status: **{prediction}**")
+        elif prediction == "High-Risk":
+            st.warning(f"🚨 Assessment Status: **{prediction}**")
+        else:
+            st.success(f"✅ Assessment Status: **{prediction}**")
+            
+        st.markdown("---")
+        st.write("### Class Probabilities")
+        prob_df = pd.DataFrame({
+            "Class": model.classes_,
+            "Probability": [f"{p * 100:.2f}%" for p in probabilities]
+        })
+        st.table(prob_df)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    except Exception as e:
+        st.error(f"Prediction Error: {e}")
+        st.info("If your pickled model contains a custom preprocessor/pipeline encoding steps, ensure categorical features match the exact numerical or encoded types expected by your fitted model.")
